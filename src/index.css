@@ -14,11 +14,16 @@
 }
 
 @media print {
-  /* Print Optimization for Rapor UTS A4 */
-  body {
-    background-color: white !important;
-    color: black !important;
+  /* Print Optimization for Rapor UTS A4 - Clean Pure White Background */
+  html,
+  body,
+  #root {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
     font-size: 11pt;
+    -webkit-print-color-adjust: economy;
+    print-color-adjust: economy;
   }
 
   .no-print {
@@ -35,11 +40,19 @@
   }
 
   .rapor-sheet {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
     box-shadow: none !important;
     border: none !important;
     padding: 0 !important;
     margin: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
+  }
+
+  .rapor-sheet :where(div, section, table, thead, tbody, tfoot, tr, th, td, p, span) {
+    background: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
   }
 }

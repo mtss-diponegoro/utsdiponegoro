@@ -340,7 +340,7 @@ const ReportCardSingle: React.FC<ReportCardSingleProps> = ({
       </div>
 
       {/* Student Identity Information */}
-      <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs mb-4 border border-slate-300 p-2.5 bg-slate-50/40 rounded">
+      <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs mb-4 border border-slate-300 p-2.5 bg-slate-50/40 print:bg-white rounded">
         <div className="flex">
           <span className="w-32 font-medium text-slate-600">Nama Peserta Didik</span>
           <span className="w-3">:</span>
@@ -377,7 +377,7 @@ const ReportCardSingle: React.FC<ReportCardSingleProps> = ({
       <div className="mb-4">
         <table className="w-full text-left text-xs border border-slate-900 border-collapse">
           <thead>
-            <tr className="bg-slate-100 text-slate-900 font-bold border-b border-slate-900 text-center">
+            <tr className="bg-slate-100 print:bg-white text-slate-900 font-bold border-b border-slate-900 text-center">
               <th className="py-2 px-2 w-8 border-r border-slate-900">No</th>
               <th className="py-2 px-3 text-left border-r border-slate-900">Mata Pelajaran</th>
               <th className="py-2 px-2 w-14 border-r border-slate-900">KKM</th>
@@ -411,7 +411,7 @@ const ReportCardSingle: React.FC<ReportCardSingleProps> = ({
             ))}
           </tbody>
           <tfoot>
-            <tr className="bg-slate-100 font-bold border-t-2 border-slate-900">
+            <tr className="bg-slate-100 print:bg-white font-bold border-t-2 border-slate-900">
               <td colSpan={3} className="py-2 px-3 text-right uppercase text-[11px] border-r border-slate-900">
                 Jumlah Nilai / Rata-rata
               </td>
@@ -465,7 +465,7 @@ const ReportCardSingle: React.FC<ReportCardSingleProps> = ({
             <h4 className="font-bold uppercase text-[11px] border-b border-slate-300 pb-1 mb-2 text-slate-900">
               C. Catatan Perkembangan Wali Kelas
             </h4>
-            <p className="text-[11px] text-slate-800 leading-relaxed italic bg-slate-50 p-2 rounded border border-slate-200 min-h-[75px]">
+            <p className="text-[11px] text-slate-800 leading-relaxed italic bg-slate-50 print:bg-white p-2 rounded border border-slate-200 min-h-[75px]">
               "{homeroomRecord.homeroomNote || 'Pertahankan semangat belajar dan selalu tingkatkan kedisiplinan serta akhlak terpuji di sekolah dan rumah.'}"
             </p>
           </div>
@@ -545,7 +545,7 @@ const PrintableLegerSheet: React.FC<{ currentClass: any; rankings: any[]; subjec
       <div className="overflow-x-auto my-3">
         <table className="w-full text-left text-[11px] border border-slate-900 border-collapse">
           <thead>
-            <tr className="bg-slate-100 text-slate-900 font-bold border-b border-slate-900 text-center">
+            <tr className="bg-slate-100 print:bg-white text-slate-900 font-bold border-b border-slate-900 text-center">
               <th className="py-2 px-1.5 w-8 border-r border-slate-900">Rank</th>
               <th className="py-2 px-2 w-14 border-r border-slate-900">NIS</th>
               <th className="py-2 px-3 text-left border-r border-slate-900 min-w-[160px]">Nama Siswa</th>
@@ -555,8 +555,8 @@ const PrintableLegerSheet: React.FC<{ currentClass: any; rankings: any[]; subjec
                   {sub.code}
                 </th>
               ))}
-              <th className="py-2 px-2 w-14 border-r border-slate-900 bg-slate-200/50">Total</th>
-              <th className="py-2 px-2 w-14 border-r border-slate-900 bg-slate-200/50">Rata2</th>
+              <th className="py-2 px-2 w-14 border-r border-slate-900 bg-slate-200/50 print:bg-white">Total</th>
+              <th className="py-2 px-2 w-14 border-r border-slate-900 bg-slate-200/50 print:bg-white">Rata2</th>
               <th className="py-2 px-1 w-8 border-r border-slate-900">S</th>
               <th className="py-2 px-1 w-8 border-r border-slate-900">I</th>
               <th className="py-2 px-1 w-8">A</th>
@@ -649,7 +649,7 @@ const PrintableAttendanceSheet: React.FC<{ currentClass: any; students: Student[
       <div className="my-4">
         <table className="w-full text-left text-[11px] border border-slate-900 border-collapse">
           <thead>
-            <tr className="bg-slate-100 font-bold border-b border-slate-900 text-center">
+            <tr className="bg-slate-100 print:bg-white font-bold border-b border-slate-900 text-center">
               <th className="py-2 px-2 w-8 border-r border-slate-900">No</th>
               <th className="py-2 px-2 w-16 border-r border-slate-900">NIS</th>
               <th className="py-2 px-3 text-left border-r border-slate-900 min-w-[160px]">Nama Siswa</th>
@@ -750,7 +750,7 @@ const PrintableCertificates: React.FC<{ rankings: any[]; currentClass: any; sett
               NIS: {item.student.nis} · NISN: {item.student.nisn}
             </p>
 
-            <div className="my-6 max-w-lg mx-auto bg-amber-50/70 border border-amber-200 p-4 rounded-xl">
+            <div className="my-6 max-w-lg mx-auto bg-amber-50/70 print:bg-white border border-amber-200 p-4 rounded-xl">
               <p className="text-xs font-medium text-slate-800">
                 Atas capaian prestasi istimewa sebagai:
               </p>

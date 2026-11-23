@@ -74,7 +74,7 @@ const MainContent: React.FC = () => {
   };
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 print:max-w-none print:p-0 print:bg-white">
       {renderView()}
     </main>
   );
@@ -88,7 +88,7 @@ const AppLayout: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 print:bg-white text-slate-900 flex flex-col font-sans">
       <Navbar />
       <div className="flex-1">
         <MainContent />
