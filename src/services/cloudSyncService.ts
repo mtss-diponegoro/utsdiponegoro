@@ -1,4 +1,5 @@
 import { SchoolDatabaseSnapshot } from '../utils/localDb';
+import { Gender, Teacher, UserRole } from '../types';
 
 export type CloudMode = 'checking' | 'connected' | 'not-configured' | 'local-only' | 'error';
 
@@ -13,6 +14,35 @@ export interface CloudSaveResult {
   mode: CloudMode;
   syncedAt?: string;
   message: string;
+}
+
+export interface RegisterTeacherPayload {
+  nip: string;
+  name: string;
+  email: string;
+  password: string;
+  phone?: string;
+  gender: Gender;
+  isHomeroom: boolean;
+  homeroomClassId?: string;
+  taughtSubjectIds: string[];
+}
+
+export interface CloudRegisterTeacherResult {
+  success: boolean;
+  configured: boolean;
+  teacher?: Teacher;
+  teachers?: Teacher[];
+  syncedAt?: string;
+  message: string;
+}
+
+export interface CloudAuthResult {
+  configured: boolean;
+  fallbackToLocal?: boolean;
+  ok: boolean;
+  teacher?: Teacher;
+  message?: string;
 }
 
 export async function fetchCloudDatabase(): Promise<CloudFetchResult> {
@@ -47,7 +77,7 @@ export async function fetchCloudDatabase(): Promise<CloudFetchResult> {
         data: null,
         message:
           json.message ||
-          'Database Vercel Storage belum dihubungkan. Hubungkan Upstash Redis / KV di Vercel Dashboard.',
+          'Database Upstash Redis / KV belum dihubungkan pada Environment Variables proyek ini.',
       };
     }
 
@@ -55,7 +85,7 @@ export async function fetchCloudDatabase(): Promise<CloudFetchResult> {
       return {
         mode: 'error',
         data: null,
-        message: json.message || 'Gagal mengambil data dari database cloud Vercel.',
+        message: json.message || 'Gagal mengambil data dari database cloud.',
       };
     }
 
@@ -63,8 +93,8 @@ export async function fetchCloudDatabase(): Promise<CloudFetchResult> {
       mode: 'connected',
       data: json.data || null,
       message: json.data
-        ? 'Data berhasil dimuat dari database cloud Vercel.'
-        : 'Terhubung ke database cloud Vercel (siap menyimpan data pertama).',
+        ? 'Data berhasil dimuat dari database cloud Upstash.'
+        : 'Terhubung ke database cloud Upstash (siap menyimpan data pertama).',
     };
   } catch {
     return {
@@ -106,7 +136,7 @@ export async function saveCloudDatabase(snapshot: SchoolDatabaseSnapshot): Promi
       return {
         success: false,
         mode: 'not-configured',
-        message: json.message || 'Database cloud Vercel belum terpasang.',
+        message: json.message || 'Database cloud belum terpasang.',
       };
     }
 
@@ -114,7 +144,7 @@ export async function saveCloudDatabase(snapshot: SchoolDatabaseSnapshot): Promi
       return {
         success: false,
         mode: 'error',
-        message: json.message || 'Gagal menyimpan ke database cloud Vercel.',
+        message: json.message || 'Gagal menyimpan ke database cloud.',
       };
     }
 
@@ -122,14 +152,129 @@ export async function saveCloudDatabase(snapshot: SchoolDatabaseSnapshot): Promi
       success: true,
       mode: 'connected',
       syncedAt: json.syncedAt,
-      message: json.message || 'Tersimpan permanen di database cloud Vercel.',
+      message: json.message || 'Tersimpan permanen di database cloud Upstash.',
     };
   } catch {
     return {
       success: false,
       mode: 'error',
-      message: 'Gagal terhubung ke API database cloud Vercel.',
+      message: 'Gagal terhubung ke API database cloud.',
     };
+  }
+}
+
+export async function registerTeacherInCloud(
+  payload: RegisterTeacherPayload,
+  seedTeachers: Teacher[]
+): Promise<CloudRegisterTeacherResult> {
+  try {
+    const response = await fetch('/api/register-teacher', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        ...payload,
+        seedTeachers,
+      }),
+    });
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      return {
+        success: false,
+        configured: false,
+        message: 'Endpoint server tidak tersedia; menggunakan penyimpanan lokal.',
+      };
+    }
+
+    const json = (await response.json()) as {
+      ok?: boolean;
+      configured?: boolean;
+      teacher?: Teacher;
+      teachers?: Teacher[];
+      syncedAt?: string;
+      message?: string;
+    };
+
+    if (!json.configured) {
+      return {
+        success: false,
+        configured: false,
+        message: json.message || 'Database cloud belum terpasang.',
+      };
+    }
+
+    if (!response.ok || !json.ok) {
+      return {
+        success: false,
+        configured: true,
+        message: json.message || 'Gagal mendaftarkan akun guru.',
+      };
+    }
+
+    return {
+      success: true,
+      configured: true,
+      teacher: json.teacher,
+      teachers: json.teachers,
+      syncedAt: json.syncedAt,
+      message: json.message || 'Pendaftaran akun guru berhasil disimpan ke database cloud.',
+    };
+  } catch {
+    return {
+      success: false,
+      configured: false,
+      message: 'Gagal terhubung ke server pendaftaran.',
+    };
+  }
+}
+
+export async function authenticateTeacherInCloud(
+  identifier: string,
+  password: string,
+  targetRole?: UserRole
+): Promise<CloudAuthResult> {
+  try {
+    const response = await fetch('/api/auth', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({ identifier, password, targetRole }),
+    });
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      return { configured: false, ok: false };
+    }
+
+    const json = (await response.json()) as {
+      ok?: boolean;
+      configured?: boolean;
+      fallbackToLocal?: boolean;
+      teacher?: Teacher;
+      message?: string;
+    };
+
+    if (!json.configured) {
+      return { configured: false, ok: false };
+    }
+
+    if (json.fallbackToLocal) {
+      return { configured: true, fallbackToLocal: true, ok: false };
+    }
+
+    return {
+      configured: true,
+      ok: Boolean(response.ok && json.ok && json.teacher),
+      teacher: json.teacher,
+      message: json.message,
+    };
+  } catch {
+    return { configured: false, ok: false };
   }
 }
 

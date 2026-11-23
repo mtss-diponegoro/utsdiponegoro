@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { UserRole } from '../../types';
+import { TeacherRegisterModal } from './TeacherRegisterModal';
 import {
   GraduationCap,
   Shield,
@@ -16,6 +17,7 @@ import {
   ArrowRight,
   Cloud,
   RefreshCw,
+  UserPlus,
 } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
@@ -26,7 +28,9 @@ export const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
 
   const isAdminTab = roleTab === 'admin';
 
@@ -38,6 +42,7 @@ export const LoginPage: React.FC = () => {
   const handleTabChange = (role: UserRole) => {
     setRoleTab(role);
     setErrorMessage(null);
+    setSuccessMessage(null);
     setIdentifier('');
     setPassword('');
     setShowPassword(false);
@@ -56,9 +61,10 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setSuccessMessage(null);
 
     if (!identifier.trim()) {
       setErrorMessage(
@@ -74,14 +80,11 @@ export const LoginPage: React.FC = () => {
     }
 
     setIsLoading(true);
-
-    setTimeout(() => {
-      const result = login(identifier, password, roleTab);
-      setIsLoading(false);
-      if (!result.success) {
-        setErrorMessage(result.message);
-      }
-    }, 220);
+    const result = await login(identifier, password, roleTab);
+    setIsLoading(false);
+    if (!result.success) {
+      setErrorMessage(result.message);
+    }
   };
 
   return (
@@ -237,6 +240,14 @@ export const LoginPage: React.FC = () => {
               </div>
             </div>
 
+            {/* Success Message Alert */}
+            {successMessage && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-start gap-2.5 text-xs text-emerald-800">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <p className="font-medium leading-relaxed">{successMessage}</p>
+              </div>
+            )}
+
             {/* Error Message Alert */}
             {errorMessage && (
               <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2.5 text-xs text-rose-800">
@@ -341,6 +352,25 @@ export const LoginPage: React.FC = () => {
                 )}
               </button>
             </form>
+
+            {!isAdminTab && (
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+                <span className="text-[11px] text-slate-600">
+                  Guru baru belum memiliki akun?
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErrorMessage(null);
+                    setIsRegisterModalOpen(true);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-[11px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>Daftar Guru Baru</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Quick 1-Click Login Shortcuts Card */}
@@ -402,13 +432,13 @@ export const LoginPage: React.FC = () => {
               {cloudState.syncStatus === 'syncing' ? (
                 <>
                   <RefreshCw className="w-3 h-3 animate-spin" />
-                  <span>Memuat data tersimpan dari database Vercel...</span>
+                  <span>Memuat data tersimpan dari database Upstash...</span>
                 </>
               ) : (
                 <>
                   <Cloud className="w-3 h-3" />
                   <span>
-                    Database Cloud Vercel Aktif
+                    Database Cloud Upstash Aktif
                     {cloudState.lastSyncedAt ? ` · Sinkron ${cloudState.lastSyncedAt}` : ''}
                   </span>
                 </>
@@ -420,6 +450,24 @@ export const LoginPage: React.FC = () => {
           </p>
         </div>
       </div>
+
+      <TeacherRegisterModal
+        isOpen={isRegisterModalOpen}
+        onClose={() => setIsRegisterModalOpen(false)}
+        onRegisteredSuccess={(teacher, autoLogin) => {
+          setIsRegisterModalOpen(false);
+          if (autoLogin) {
+            quickLoginAs(teacher.id);
+          } else {
+            setRoleTab('guru');
+            setIdentifier(teacher.email);
+            setPassword('');
+            setSuccessMessage(
+              `Akun ${teacher.name} berhasil didaftarkan! Silakan masukkan kata sandi Anda untuk masuk.`
+            );
+          }
+        }}
+      />
     </div>
   );
 };

@@ -26,6 +26,10 @@ function sendJson(res: VercelResponse, statusCode: number, payload: unknown) {
   res.end(JSON.stringify(payload));
 }
 
+function stripQuotes(value: string): string {
+  return value.trim().replace(/^['"]+|['"]+$/g, '').trim();
+}
+
 function getRedisCredentials() {
   const url =
     process.env.KV_REST_API_URL ||
@@ -35,19 +39,64 @@ function getRedisCredentials() {
     process.env.KV_REST_API_TOKEN ||
     process.env.UPSTASH_REDIS_REST_TOKEN ||
     '';
+  const readOnlyToken = process.env.KV_REST_API_READ_ONLY_TOKEN || '';
   return {
-    url: url.trim().replace(/\/+$/, ''),
-    token: token.trim(),
+    url: stripQuotes(url).replace(/\/+$/, ''),
+    token: stripQuotes(token),
+    readOnlyToken: stripQuotes(readOnlyToken),
   };
 }
 
+function isValidHttpUrl(rawUrl: string): boolean {
+  try {
+    const parsed = new URL(rawUrl);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
+function sanitizeSnapshotPayload(payload: Record<string, unknown>): Record<string, unknown> | null {
+  const allowedKeys = [
+    'students',
+    'subjects',
+    'teachers',
+    'grades',
+    'homeroomRecords',
+    'settings',
+  ] as const;
+
+  const sanitized: Record<string, unknown> = {};
+  let hasValidField = false;
+
+  for (const key of allowedKeys) {
+    if (key in payload && payload[key] !== undefined) {
+      const value = payload[key];
+      if (key === 'settings') {
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+          sanitized[key] = value;
+          hasValidField = true;
+        }
+      } else if (Array.isArray(value)) {
+        sanitized[key] = value;
+        hasValidField = true;
+      }
+    }
+  }
+
+  return hasValidField ? sanitized : null;
+}
+
 async function readRequestBody(req: VercelRequest): Promise<Record<string, unknown> | null> {
-  if (req.body && typeof req.body === 'object') {
+  if (req.body && typeof req.body === 'object' && !Array.isArray(req.body)) {
     return req.body as Record<string, unknown>;
   }
   if (typeof req.body === 'string') {
     try {
-      return JSON.parse(req.body) as Record<string, unknown>;
+      const parsed: unknown = JSON.parse(req.body);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : null;
     } catch {
       return null;
     }
@@ -55,11 +104,31 @@ async function readRequestBody(req: VercelRequest): Promise<Record<string, unkno
 
   return new Promise((resolve) => {
     const chunks: Uint8Array[] = [];
-    req.on('data', (chunk: Uint8Array) => chunks.push(chunk));
+    let totalBytes = 0;
+    const maxBytes = 10 * 1024 * 1024;
+    req.on('data', (chunk: Uint8Array) => {
+      totalBytes += chunk.byteLength;
+      if (totalBytes <= maxBytes) {
+        chunks.push(chunk);
+      }
+    });
     req.on('end', () => {
+      if (totalBytes > maxBytes) {
+        resolve(null);
+        return;
+      }
       try {
         const raw = Buffer.concat(chunks).toString('utf8');
-        resolve(raw ? (JSON.parse(raw) as Record<string, unknown>) : null);
+        if (!raw) {
+          resolve(null);
+          return;
+        }
+        const parsed: unknown = JSON.parse(raw);
+        resolve(
+          parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+            ? (parsed as Record<string, unknown>)
+            : null
+        );
       } catch {
         resolve(null);
       }
@@ -69,16 +138,25 @@ async function readRequestBody(req: VercelRequest): Promise<Record<string, unkno
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const { url: redisUrl, token: redisToken } = getRedisCredentials();
+  const { url: redisUrl, token: redisToken, readOnlyToken } = getRedisCredentials();
+  const effectiveGetToken = redisToken || readOnlyToken;
 
-  if (!redisUrl || !redisToken) {
+  if (!redisUrl || (!redisToken && (req.method !== 'GET' || !effectiveGetToken))) {
     return sendJson(res, 200, {
       ok: true,
       configured: false,
       provider: null,
       data: null,
       message:
-        'Database Vercel Storage (Upstash Redis / KV) belum dihubungkan pada Environment Variables proyek ini.',
+        'Database Upstash Redis / KV belum dihubungkan pada Environment Variables / Secrets proyek ini.',
+    });
+  }
+
+  if (!isValidHttpUrl(redisUrl)) {
+    return sendJson(res, 500, {
+      ok: false,
+      configured: true,
+      message: 'Konfigurasi URL database cloud tidak valid.',
     });
   }
 
@@ -87,7 +165,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const response = await fetch(`${redisUrl}/get/${encodeURIComponent(DB_KEY)}`, {
         method: 'GET',
         headers: {
-          Authorization: `Bearer ${redisToken}`,
+          Authorization: `Bearer ${effectiveGetToken}`,
         },
       });
 
@@ -108,6 +186,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         parsedData = json.result;
       }
 
+      if (parsedData && Array.isArray(parsedData.teachers)) {
+        parsedData = {
+          ...parsedData,
+          teachers: parsedData.teachers.map((teacher) => {
+            if (teacher && typeof teacher === 'object' && !Array.isArray(teacher)) {
+              const { passwordHash: _ph, ...rest } = teacher as Record<string, unknown>;
+              return rest;
+            }
+            return teacher;
+          }),
+        };
+      }
+
       return sendJson(res, 200, {
         ok: true,
         configured: true,
@@ -118,9 +209,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (req.method === 'POST') {
       const body = await readRequestBody(req);
-      const dataPayload = body?.data && typeof body.data === 'object' ? body.data : body;
+      const rawPayload =
+        body?.data && typeof body.data === 'object' && !Array.isArray(body.data)
+          ? (body.data as Record<string, unknown>)
+          : body;
 
-      if (!dataPayload || typeof dataPayload !== 'object') {
+      const sanitizedPayload = rawPayload ? sanitizeSnapshotPayload(rawPayload) : null;
+
+      if (!sanitizedPayload) {
         return sendJson(res, 400, {
           ok: false,
           configured: true,
@@ -128,8 +224,55 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
       }
 
+      // Preserve server-side passwordHash fields on existing teachers when syncing from client
+      if (Array.isArray(sanitizedPayload.teachers)) {
+        try {
+          const existingRes = await fetch(`${redisUrl}/get/${encodeURIComponent(DB_KEY)}`, {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${redisToken}`,
+            },
+          });
+          if (existingRes.ok) {
+            const existingJson = (await existingRes.json()) as {
+              result?: string | Record<string, unknown> | null;
+            };
+            let existingSnapshot: Record<string, unknown> | null = null;
+            if (typeof existingJson.result === 'string' && existingJson.result.trim()) {
+              existingSnapshot = JSON.parse(existingJson.result) as Record<string, unknown>;
+            } else if (existingJson.result && typeof existingJson.result === 'object') {
+              existingSnapshot = existingJson.result;
+            }
+            if (existingSnapshot && Array.isArray(existingSnapshot.teachers)) {
+              const hashMap = new Map<string, string>();
+              for (const t of existingSnapshot.teachers) {
+                if (t && typeof t === 'object') {
+                  const rec = t as Record<string, unknown>;
+                  if (typeof rec.id === 'string' && typeof rec.passwordHash === 'string') {
+                    hashMap.set(rec.id, rec.passwordHash);
+                  }
+                }
+              }
+              sanitizedPayload.teachers = sanitizedPayload.teachers.map((t) => {
+                if (t && typeof t === 'object' && !Array.isArray(t)) {
+                  const rec = t as Record<string, unknown>;
+                  const existingHash =
+                    typeof rec.id === 'string' ? hashMap.get(rec.id) : undefined;
+                  if (existingHash && !rec.password) {
+                    return { ...rec, passwordHash: existingHash };
+                  }
+                }
+                return t;
+              });
+            }
+          }
+        } catch {
+          // Proceed with client snapshot if pre-read fails
+        }
+      }
+
       const snapshot = {
-        ...(dataPayload as Record<string, unknown>),
+        ...sanitizedPayload,
         updatedAt: new Date().toISOString(),
       };
 
@@ -155,7 +298,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         configured: true,
         provider: 'upstash-redis',
         syncedAt: snapshot.updatedAt,
-        message: 'Seluruh data berhasil disimpan ke database cloud Vercel.',
+        message: 'Seluruh data berhasil disimpan ke database cloud.',
       });
     }
 
@@ -187,11 +330,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Allow', 'GET, POST, DELETE');
     return sendJson(res, 405, { ok: false, message: 'Method not allowed' });
   } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
+    console.error('[api/store] Database request failed:', err instanceof Error ? err.message : 'Unknown error');
     return sendJson(res, 500, {
       ok: false,
       configured: true,
-      message: `Kesalahan server database: ${errorMsg}`,
+      message: 'Terjadi kesalahan saat menghubungi server database.',
     });
   }
 }

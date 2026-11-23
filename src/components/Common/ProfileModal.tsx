@@ -64,7 +64,7 @@ export const ProfileModal: React.FC = () => {
       email,
       phone,
       gender,
-      password: password || currentUser.password || 'guru123',
+      ...(password.trim() ? { password: password.trim() } : {}),
     });
 
     setSavedSuccess(true);

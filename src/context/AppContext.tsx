@@ -22,8 +22,11 @@ import {
 } from '../data/initialData';
 import {
   CloudMode,
+  RegisterTeacherPayload,
   fetchCloudDatabase,
   saveCloudDatabase,
+  registerTeacherInCloud,
+  authenticateTeacherInCloud,
   resetCloudDatabase,
 } from '../services/cloudSyncService';
 import {
@@ -62,7 +65,10 @@ interface AppContextType {
   // Authentication
   isAuthenticated: boolean;
   currentUser: Teacher | null;
-  login: (identifier: string, password: string, targetRole?: UserRole) => { success: boolean; message: string };
+  login: (identifier: string, password: string, targetRole?: UserRole) => Promise<{ success: boolean; message: string }>;
+  registerTeacher: (
+    payload: RegisterTeacherPayload
+  ) => Promise<{ success: boolean; message: string; teacher?: Teacher }>;
   logout: () => void;
   quickLoginAs: (teacherId: string) => void;
 
@@ -245,17 +251,64 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [currentUser?.role, ADMIN_ONLY_VIEWS]
   );
 
+  const applyAuthenticatedUser = useCallback((matched: Teacher) => {
+    setIsAuthenticated(true);
+    setCurrentUser(matched);
+    setCurrentRoleState(matched.role);
+    setActiveTeacherIdState(matched.id);
+    localStorage.setItem('sinilai_uts_auth', 'true');
+    localStorage.setItem('sinilai_uts_current_user', JSON.stringify(matched));
+    localStorage.setItem(STORAGE_KEYS.ROLE, matched.role);
+    localStorage.setItem(STORAGE_KEYS.TEACHER_ID, matched.id);
+
+    if (matched.role === 'admin') {
+      setActiveViewState('dashboard');
+    } else {
+      setActiveViewState('teacher_grades');
+      if (matched.taughtSubjectIds.length > 0) {
+        setSelectedSubjectId(matched.taughtSubjectIds[0]);
+      }
+      if (matched.homeroomClassId) {
+        setSelectedClassId(matched.homeroomClassId);
+      }
+    }
+  }, []);
+
   const login = useCallback(
-    (identifier: string, password: string, targetRole?: UserRole): { success: boolean; message: string } => {
+    async (
+      identifier: string,
+      password: string,
+      targetRole?: UserRole
+    ): Promise<{ success: boolean; message: string }> => {
       const cleanId = identifier.trim().toLowerCase();
       const cleanPass = password.trim();
 
-      // 1. Prioritize exact email or NIP match across all accounts
+      // Try server-side verification against Upstash Redis first when configured
+      const cloudAuth = await authenticateTeacherInCloud(cleanId, cleanPass, targetRole);
+      if (cloudAuth.configured && !cloudAuth.fallbackToLocal) {
+        if (!cloudAuth.ok || !cloudAuth.teacher) {
+          return {
+            success: false,
+            message: cloudAuth.message || 'NIP, Email, atau kata sandi tidak valid.',
+          };
+        }
+
+        const verifiedUser = cloudAuth.teacher;
+        setTeachers((prev) =>
+          prev.some((t) => t.id === verifiedUser.id) ? prev : [...prev, verifiedUser]
+        );
+        applyAuthenticatedUser(verifiedUser);
+        return {
+          success: true,
+          message: cloudAuth.message || `Selamat datang, ${verifiedUser.name}!`,
+        };
+      }
+
+      // Local fallback verification (when Upstash is not connected or empty)
       let matched = teachers.find(
         (t) => t.email.toLowerCase() === cleanId || t.nip.toLowerCase() === cleanId
       );
 
-      // 2. Fallback to name / keyword match: prioritize accounts matching the selected login tab first
       if (!matched) {
         const prioritizedList = targetRole
           ? [
@@ -277,7 +330,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return { success: false, message: 'NIP, Email, atau nama akun tidak terdaftar di sistem.' };
       }
 
-      // 3. Strict Role Check: Admin cannot login from Guru tab & Guru cannot login from Admin tab
       if (targetRole && matched.role !== targetRole) {
         const actualLabel = matched.role === 'admin' ? 'Administrator' : 'Guru & Wali Kelas';
         return {
@@ -286,7 +338,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
       }
 
-      // 4. Strict Password Check (each role uses its own account password, no cross-role bypass)
       const expectedPass = matched.password || (matched.role === 'admin' ? 'admin123' : 'guru123');
       if (cleanPass !== expectedPass) {
         return {
@@ -295,28 +346,116 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
       }
 
-      setIsAuthenticated(true);
-      setCurrentUser(matched);
-      setCurrentRoleState(matched.role);
-      setActiveTeacherIdState(matched.id);
-      localStorage.setItem('sinilai_uts_auth', 'true');
-      localStorage.setItem('sinilai_uts_current_user', JSON.stringify(matched));
-      localStorage.setItem(STORAGE_KEYS.ROLE, matched.role);
-      localStorage.setItem(STORAGE_KEYS.TEACHER_ID, matched.id);
+      applyAuthenticatedUser(matched);
+      return { success: true, message: `Selamat datang, ${matched.name}!` };
+    },
+    [teachers, applyAuthenticatedUser]
+  );
 
-      if (matched.role === 'admin') {
-        setActiveViewState('dashboard');
-      } else {
-        setActiveViewState('teacher_grades');
-        if (matched.taughtSubjectIds.length > 0) {
-          setSelectedSubjectId(matched.taughtSubjectIds[0]);
-        }
-        if (matched.homeroomClassId) {
-          setSelectedClassId(matched.homeroomClassId);
-        }
+  const registerTeacher = useCallback(
+    async (
+      payload: RegisterTeacherPayload
+    ): Promise<{ success: boolean; message: string; teacher?: Teacher }> => {
+      const cleanName = payload.name.trim();
+      const cleanNip = payload.nip.trim();
+      const cleanEmail = payload.email.trim().toLowerCase();
+      const cleanPassword = payload.password.trim();
+
+      if (cleanName.length < 3) {
+        return { success: false, message: 'Nama lengkap minimal 3 karakter.' };
+      }
+      if (cleanNip.length < 4) {
+        return { success: false, message: 'NIP / NUPTK minimal 4 karakter.' };
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+        return { success: false, message: 'Format alamat email tidak valid.' };
+      }
+      if (cleanPassword.length < 6) {
+        return { success: false, message: 'Kata sandi minimal 6 karakter.' };
       }
 
-      return { success: true, message: `Selamat datang, ${matched.name}!` };
+      const cloudResult = await registerTeacherInCloud(
+        {
+          ...payload,
+          name: cleanName,
+          nip: cleanNip,
+          email: cleanEmail,
+          password: cleanPassword,
+          phone: payload.phone?.trim() || '',
+        },
+        teachers
+      );
+
+      if (cloudResult.configured) {
+        if (!cloudResult.success || !cloudResult.teacher) {
+          return {
+            success: false,
+            message: cloudResult.message,
+          };
+        }
+
+        if (Array.isArray(cloudResult.teachers) && cloudResult.teachers.length > 0) {
+          suppressNextCloudSyncRef.current = true;
+          setTeachers(cloudResult.teachers);
+        } else {
+          suppressNextCloudSyncRef.current = true;
+          setTeachers((prev) => [...prev, cloudResult.teacher!]);
+        }
+
+        setCloudState((prev) => ({
+          ...prev,
+          mode: 'connected',
+          syncStatus: 'success',
+          lastSyncedAt: new Date().toLocaleTimeString('id-ID', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+          }),
+          message: cloudResult.message,
+        }));
+
+        return {
+          success: true,
+          teacher: cloudResult.teacher,
+          message: cloudResult.message,
+        };
+      }
+
+      // Local-only fallback when Upstash is not configured
+      const localDuplicate = teachers.find(
+        (t) =>
+          t.email.trim().toLowerCase() === cleanEmail ||
+          t.nip.trim().toLowerCase() === cleanNip.toLowerCase()
+      );
+      if (localDuplicate) {
+        const conflictField =
+          localDuplicate.email.trim().toLowerCase() === cleanEmail ? 'Email' : 'NIP / NUPTK';
+        return {
+          success: false,
+          message: `${conflictField} sudah terdaftar di sistem.`,
+        };
+      }
+
+      const newTeacher: Teacher = {
+        id: `t-${Date.now()}`,
+        nip: cleanNip,
+        name: cleanName,
+        email: cleanEmail,
+        phone: payload.phone?.trim() || '',
+        gender: payload.gender,
+        role: 'guru',
+        isHomeroom: payload.isHomeroom,
+        homeroomClassId: payload.isHomeroom ? payload.homeroomClassId : undefined,
+        taughtSubjectIds: payload.taughtSubjectIds,
+        password: cleanPassword,
+      };
+
+      setTeachers((prev) => [...prev, newTeacher]);
+      return {
+        success: true,
+        teacher: newTeacher,
+        message: `Pendaftaran berhasil! Akun guru ${cleanName} tersimpan di penyimpanan lokal.`,
+      };
     },
     [teachers]
   );
@@ -1048,6 +1187,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isAuthenticated,
         currentUser,
         login,
+        registerTeacher,
         logout,
         quickLoginAs,
         currentRole,
