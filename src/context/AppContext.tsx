@@ -857,7 +857,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setHomeroomRecords(snapshot.homeroomRecords);
     }
     if (snapshot.settings && typeof snapshot.settings === 'object') {
-      setSettings((prev) => ({ ...prev, ...snapshot.settings }));
+      setSettings((prev) => ({ ...INITIAL_SETTINGS, ...prev, ...snapshot.settings }));
     }
   }, []);
 

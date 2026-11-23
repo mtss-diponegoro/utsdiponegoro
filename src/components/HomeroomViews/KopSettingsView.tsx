@@ -47,13 +47,22 @@ function compressLogoDataUrl(dataUrl: string, maxDim = 240): Promise<string> {
 }
 
 export const KopSettingsView: React.FC = () => {
-  const { settings, updateSettings, setActiveView } = useApp();
+  const { settings, updateSettings, setActiveView, currentUser, currentRole } = useApp();
+  const isAdminSession = currentUser?.role === 'admin' && currentRole === 'admin';
 
-  const [form, setForm] = useState({ ...settings });
+  const normalizeForm = (src: typeof settings) => ({
+    ...src,
+    printMarginTop: src.printMarginTop ?? 12,
+    printMarginRight: src.printMarginRight ?? 15,
+    printMarginBottom: src.printMarginBottom ?? 12,
+    printMarginLeft: src.printMarginLeft ?? 15,
+  });
+
+  const [form, setForm] = useState(() => normalizeForm(settings));
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   useEffect(() => {
-    setForm({ ...settings });
+    setForm(normalizeForm(settings));
   }, [settings]);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>, target: 'instansi' | 'lembaga') => {
@@ -92,18 +101,28 @@ export const KopSettingsView: React.FC = () => {
       <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200">
-              Menu Wali Kelas
+            <span
+              className={`text-xs font-semibold px-2.5 py-0.5 rounded border ${
+                isAdminSession
+                  ? 'text-indigo-800 bg-indigo-50 border-indigo-200'
+                  : 'text-emerald-800 bg-emerald-50 border-emerald-200'
+              }`}
+            >
+              {isAdminSession ? 'Menu Administrator' : 'Menu Wali Kelas'}
             </span>
             <span className="text-xs text-slate-500">·</span>
-            <span className="text-xs text-slate-500">Pengaturan Kop Surat & Dokumen</span>
+            <span className="text-xs text-slate-500">
+              Pengaturan Cetak Rapor, Margin &amp; Kop Resmi (Sinkron ke Wali Kelas)
+            </span>
           </div>
           <h1 className="text-xl font-bold text-slate-900 tracking-tight mt-1 flex items-center gap-2">
-            <Sliders className="w-5 h-5 text-emerald-600" />
-            Pengaturan Kop Cetak, Logo Instansi & Logo Lembaga
+            <Sliders className={`w-5 h-5 ${isAdminSession ? 'text-indigo-600' : 'text-emerald-600'}`} />
+            {isAdminSession
+              ? 'Atur Cetak Rapor, Margin Kertas & Kop Resmi'
+              : 'Pengaturan Kop Cetak, Logo & Margin Kertas'}
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Atur logo kementerian/instansi (kiri), logo madrasah/lembaga (kanan), teks kop resmi, dan garis pemisah cetak
+            Atur kop resmi 2 logo, ukuran kertas (A4/F4), dan margin cetak (mm) — otomatis berlaku di seluruh menu cetak Wali Kelas
           </p>
         </div>
 
@@ -117,10 +136,10 @@ export const KopSettingsView: React.FC = () => {
           <button
             type="button"
             onClick={handleTestPrint}
-            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-xs"
+            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
           >
-            <Eye className="w-3.5 h-3.5" />
-            Lihat di Rapor Cetak
+            <Printer className="w-3.5 h-3.5" />
+            Pratinjau &amp; Uji Cetak Rapor
           </button>
         </div>
       </div>
@@ -496,12 +515,17 @@ export const KopSettingsView: React.FC = () => {
           </div>
         </div>
 
-        {/* Print Layout & Line Format */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-6 space-y-4">
-          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-            <FileCheck className="w-4 h-4 text-emerald-600" />
-            Format Garis Kop & Ukuran Kertas Cetak
-          </h3>
+        {/* Print Layout, Line Format & Margin Settings */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-6 space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+              <FileCheck className="w-4 h-4 text-emerald-600" />
+              Format Garis Kop, Ukuran Kertas &amp; Margin Cetak Rapor
+            </h3>
+            <span className="text-[11px] font-medium text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200">
+              Berlaku otomatis di menu cetak Wali Kelas
+            </span>
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
             <div>
@@ -582,9 +606,149 @@ export const KopSettingsView: React.FC = () => {
                   />
                   <div>
                     <span className="font-bold text-slate-800">F4 / Folio (215 × 330 mm)</span>
-                    <p className="text-[10px] text-slate-500">Standar kertas map rapor madrasah & dinas Indonesia</p>
+                    <p className="text-[10px] text-slate-500">Standar kertas map rapor madrasah &amp; dinas Indonesia</p>
                   </div>
                 </label>
+              </div>
+            </div>
+          </div>
+
+          {/* Margin Cetak Rapor (mm) */}
+          <div className="pt-4 border-t border-slate-100 space-y-3 text-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h4 className="font-bold text-slate-800 uppercase">
+                  Pengaturan Margin Halaman Cetak (Milimeter / mm)
+                </h4>
+                <p className="text-[11px] text-slate-500">
+                  Mengatur jarak tepi atas, bawah, kiri, dan kanan kertas saat mencetak Rapor UTS, Leger, Presensi, dan Piagam
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setForm({
+                      ...form,
+                      printMarginTop: 12,
+                      printMarginRight: 15,
+                      printMarginBottom: 12,
+                      printMarginLeft: 15,
+                    })
+                  }
+                  className="px-2.5 py-1 rounded border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[11px] font-semibold text-slate-700 cursor-pointer"
+                >
+                  Standar (12/15)
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setForm({
+                      ...form,
+                      printMarginTop: 8,
+                      printMarginRight: 10,
+                      printMarginBottom: 8,
+                      printMarginLeft: 10,
+                    })
+                  }
+                  className="px-2.5 py-1 rounded border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[11px] font-semibold text-slate-700 cursor-pointer"
+                >
+                  Sempit (8/10)
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setForm({
+                      ...form,
+                      printMarginTop: 20,
+                      printMarginRight: 20,
+                      printMarginBottom: 20,
+                      printMarginLeft: 20,
+                    })
+                  }
+                  className="px-2.5 py-1 rounded border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[11px] font-semibold text-slate-700 cursor-pointer"
+                >
+                  Resmi Lebar (20)
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                <label className="block font-bold text-slate-700 uppercase text-[10px] mb-1">
+                  Margin Atas (mm)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={45}
+                  value={form.printMarginTop ?? 12}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      printMarginTop: Math.max(0, Math.min(45, Number(e.target.value) || 0)),
+                    })
+                  }
+                  className="w-full px-2.5 py-1.5 border border-slate-300 rounded bg-white font-mono font-bold text-slate-900"
+                />
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                <label className="block font-bold text-slate-700 uppercase text-[10px] mb-1">
+                  Margin Bawah (mm)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={45}
+                  value={form.printMarginBottom ?? 12}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      printMarginBottom: Math.max(0, Math.min(45, Number(e.target.value) || 0)),
+                    })
+                  }
+                  className="w-full px-2.5 py-1.5 border border-slate-300 rounded bg-white font-mono font-bold text-slate-900"
+                />
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                <label className="block font-bold text-slate-700 uppercase text-[10px] mb-1">
+                  Margin Kiri (mm)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={45}
+                  value={form.printMarginLeft ?? 15}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      printMarginLeft: Math.max(0, Math.min(45, Number(e.target.value) || 0)),
+                    })
+                  }
+                  className="w-full px-2.5 py-1.5 border border-slate-300 rounded bg-white font-mono font-bold text-slate-900"
+                />
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                <label className="block font-bold text-slate-700 uppercase text-[10px] mb-1">
+                  Margin Kanan (mm)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={45}
+                  value={form.printMarginRight ?? 15}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      printMarginRight: Math.max(0, Math.min(45, Number(e.target.value) || 0)),
+                    })
+                  }
+                  className="w-full px-2.5 py-1.5 border border-slate-300 rounded bg-white font-mono font-bold text-slate-900"
+                />
               </div>
             </div>
           </div>
@@ -594,10 +758,14 @@ export const KopSettingsView: React.FC = () => {
         <div className="flex items-center justify-end gap-3 pt-2">
           <button
             type="submit"
-            className="px-6 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-xs"
+            className={`px-6 py-2.5 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-xs cursor-pointer ${
+              isAdminSession
+                ? 'bg-indigo-700 hover:bg-indigo-800'
+                : 'bg-emerald-700 hover:bg-emerald-800'
+            }`}
           >
             <Save className="w-4 h-4" />
-            Simpan Seluruh Pengaturan Kop Cetak
+            Simpan Pengaturan Cetak &amp; Kop Rapor
           </button>
         </div>
       </form>

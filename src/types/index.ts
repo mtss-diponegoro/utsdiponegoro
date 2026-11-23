@@ -103,6 +103,10 @@ export interface SchoolSettings {
   logoLembagaSize: number; // in pixels (e.g. 68)
   headerLineStyle: 'double' | 'single' | 'none';
   paperSize: 'A4' | 'F4';
+  printMarginTop?: number;
+  printMarginRight?: number;
+  printMarginBottom?: number;
+  printMarginLeft?: number;
 }
 
 export interface ClassRankSummary {

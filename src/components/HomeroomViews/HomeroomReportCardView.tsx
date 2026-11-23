@@ -28,8 +28,18 @@ export const HomeroomReportCardView: React.FC = () => {
     grades,
     homeroomRecords,
     settings,
+    updateSettings,
     setActiveView,
+    currentUser,
+    currentRole,
   } = useApp();
+
+  const isAdminSession = currentUser?.role === 'admin' && currentRole === 'admin';
+  const marginTop = settings.printMarginTop ?? 12;
+  const marginRight = settings.printMarginRight ?? 15;
+  const marginBottom = settings.printMarginBottom ?? 12;
+  const marginLeft = settings.printMarginLeft ?? 15;
+  const pageSizeCss = settings.paperSize === 'F4' ? '215mm 330mm' : 'A4';
 
   const currentClass = classes.find((c) => c.id === selectedClassId) || classes[0];
   const classStudents = useMemo(() => {
@@ -43,6 +53,7 @@ export const HomeroomReportCardView: React.FC = () => {
   const [currentStudentIndex, setCurrentStudentIndex] = useState(0);
   const [isPrintAllMode, setIsPrintAllMode] = useState(false);
   const [printDocType, setPrintDocType] = useState<PrintDocType>('rapor');
+  const [showMarginControls, setShowMarginControls] = useState(false);
 
   // Safeguard index
   const safeIndex = Math.min(Math.max(0, currentStudentIndex), Math.max(0, classStudents.length - 1));
@@ -86,13 +97,22 @@ export const HomeroomReportCardView: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Dynamic @page size and margins from Admin / Wali Kelas settings */}
+      <style>{`@page { size: ${pageSizeCss}; margin: ${marginTop}mm ${marginRight}mm ${marginBottom}mm ${marginLeft}mm; }`}</style>
+
       {/* Non-Print Toolbar */}
       <div className="no-print bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200">
-                Menu Wali Kelas
+              <span
+                className={`text-xs font-semibold px-2.5 py-0.5 rounded border ${
+                  isAdminSession
+                    ? 'text-indigo-800 bg-indigo-50 border-indigo-200'
+                    : 'text-emerald-800 bg-emerald-50 border-emerald-200'
+                }`}
+              >
+                {isAdminSession ? 'Menu Administrator' : 'Menu Wali Kelas'}
               </span>
               <span className="text-xs text-slate-500">·</span>
               <span className="text-xs text-slate-500">Pusat Cetak Dokumen Rapor &amp; Leger</span>
@@ -102,18 +122,36 @@ export const HomeroomReportCardView: React.FC = () => {
               Menu Cetak Dokumen Penilaian Tengah Semester
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              Cetak lembar Rapor UTS resmi, Leger Nilai Kelas, Rekap Presensi, atau Piagam Juara Kelas lengkap dengan Kop Resmi &amp; 2 Logo
+              Cetak lembar Rapor UTS resmi, Leger Nilai Kelas, Rekap Presensi, atau Piagam Juara Kelas sesuai kop, ukuran kertas, dan margin yang diatur
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
             {/* Quick Link to Kop & Logo Settings */}
             <button
+              type="button"
               onClick={() => setActiveView('walikelas_kop')}
-              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 border border-slate-300"
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 border border-slate-300 cursor-pointer"
             >
               <Sliders className="w-3.5 h-3.5 text-emerald-700" />
-              Atur Kop &amp; Logo Cetak
+              {isAdminSession ? 'Atur Cetak & Kop Rapor' : 'Atur Kop & Logo Cetak'}
+            </button>
+
+            {/* Quick Margin Toggle */}
+            <button
+              type="button"
+              onClick={() => setShowMarginControls((prev) => !prev)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 border cursor-pointer ${
+                showMarginControls
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                  : 'bg-white hover:bg-slate-50 border-slate-300 text-slate-700'
+              }`}
+              title="Sesuaikan ukuran kertas & margin sebelum mencetak"
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              <span>
+                Margin: {settings.paperSize} ({marginTop}/{marginRight}/{marginBottom}/{marginLeft} mm)
+              </span>
             </button>
 
             {/* Class Selector */}
@@ -134,14 +172,161 @@ export const HomeroomReportCardView: React.FC = () => {
 
             {/* Primary Print Button */}
             <button
+              type="button"
               onClick={handlePrint}
-              className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-2 shadow-xs"
+              className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-2 shadow-xs cursor-pointer"
             >
               <Printer className="w-4 h-4" />
               Cetak Dokumen Sekarang
             </button>
           </div>
         </div>
+
+        {/* Inline Margin & Paper Size Quick Editor */}
+        {showMarginControls && (
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 text-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <p className="font-bold text-slate-800">
+                  Pengaturan Margin &amp; Kertas Sebelum Cetak (Tersimpan Otomatis)
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  Nilai margin mengikuti pengaturan Admin dan dapat disesuaikan langsung di sini sebelum mencetak.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateSettings({
+                      printMarginTop: 12,
+                      printMarginRight: 15,
+                      printMarginBottom: 12,
+                      printMarginLeft: 15,
+                    })
+                  }
+                  className="px-2.5 py-1 rounded border border-slate-200 bg-white hover:bg-slate-100 text-[11px] font-semibold text-slate-700 cursor-pointer"
+                >
+                  Standar (12/15)
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateSettings({
+                      printMarginTop: 8,
+                      printMarginRight: 10,
+                      printMarginBottom: 8,
+                      printMarginLeft: 10,
+                    })
+                  }
+                  className="px-2.5 py-1 rounded border border-slate-200 bg-white hover:bg-slate-100 text-[11px] font-semibold text-slate-700 cursor-pointer"
+                >
+                  Sempit (8/10)
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateSettings({
+                      printMarginTop: 20,
+                      printMarginRight: 20,
+                      printMarginBottom: 20,
+                      printMarginLeft: 20,
+                    })
+                  }
+                  className="px-2.5 py-1 rounded border border-slate-200 bg-white hover:bg-slate-100 text-[11px] font-semibold text-slate-700 cursor-pointer"
+                >
+                  Lebar (20)
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <div>
+                <label className="block font-bold text-slate-600 uppercase text-[10px] mb-1">
+                  Ukuran Kertas
+                </label>
+                <select
+                  value={settings.paperSize}
+                  onChange={(e) =>
+                    updateSettings({ paperSize: e.target.value as 'A4' | 'F4' })
+                  }
+                  className="w-full px-2.5 py-1.5 border border-slate-300 rounded bg-white font-semibold text-slate-900"
+                >
+                  <option value="A4">A4 (210×297 mm)</option>
+                  <option value="F4">F4 (215×330 mm)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 uppercase text-[10px] mb-1">
+                  Atas (mm)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={45}
+                  value={marginTop}
+                  onChange={(e) =>
+                    updateSettings({
+                      printMarginTop: Math.max(0, Math.min(45, Number(e.target.value) || 0)),
+                    })
+                  }
+                  className="w-full px-2.5 py-1.5 border border-slate-300 rounded bg-white font-mono font-bold text-slate-900"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 uppercase text-[10px] mb-1">
+                  Bawah (mm)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={45}
+                  value={marginBottom}
+                  onChange={(e) =>
+                    updateSettings({
+                      printMarginBottom: Math.max(0, Math.min(45, Number(e.target.value) || 0)),
+                    })
+                  }
+                  className="w-full px-2.5 py-1.5 border border-slate-300 rounded bg-white font-mono font-bold text-slate-900"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 uppercase text-[10px] mb-1">
+                  Kiri (mm)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={45}
+                  value={marginLeft}
+                  onChange={(e) =>
+                    updateSettings({
+                      printMarginLeft: Math.max(0, Math.min(45, Number(e.target.value) || 0)),
+                    })
+                  }
+                  className="w-full px-2.5 py-1.5 border border-slate-300 rounded bg-white font-mono font-bold text-slate-900"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 uppercase text-[10px] mb-1">
+                  Kanan (mm)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={45}
+                  value={marginRight}
+                  onChange={(e) =>
+                    updateSettings({
+                      printMarginRight: Math.max(0, Math.min(45, Number(e.target.value) || 0)),
+                    })
+                  }
+                  className="w-full px-2.5 py-1.5 border border-slate-300 rounded bg-white font-mono font-bold text-slate-900"
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Sub-Tabs: Document Type Selector */}
         <div className="flex flex-wrap items-center justify-between border-t border-slate-100 pt-3 gap-3">

@@ -202,6 +202,18 @@ export const Navbar: React.FC = () => {
                 Leger Sekolah
               </button>
               <button
+                onClick={() => setActiveView('walikelas_kop')}
+                className={`px-3 py-1.5 rounded-md transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+                  activeView === 'walikelas_kop' || activeView === 'walikelas_rapor'
+                    ? 'bg-indigo-50 text-indigo-900 font-semibold'
+                    : 'hover:text-slate-900'
+                }`}
+                title="Pengaturan Kop, Ukuran Kertas & Margin Cetak Rapor"
+              >
+                <Printer className="w-4 h-4" />
+                Atur Cetak Rapor
+              </button>
+              <button
                 onClick={() => setActiveView('settings')}
                 className={`px-3 py-1.5 rounded-md transition-colors whitespace-nowrap flex items-center gap-1.5 ${
                   activeView === 'settings' ? 'bg-indigo-50 text-indigo-900 font-semibold' : 'hover:text-slate-900'
@@ -426,6 +438,16 @@ export const Navbar: React.FC = () => {
               }`}
             >
               Leger Sekolah
+            </button>
+            <button
+              onClick={() => setActiveView('walikelas_kop')}
+              className={`px-2.5 py-1 rounded whitespace-nowrap ${
+                activeView === 'walikelas_kop' || activeView === 'walikelas_rapor'
+                  ? 'bg-indigo-700 text-white font-medium'
+                  : 'bg-white text-slate-700 border border-slate-200'
+              }`}
+            >
+              Atur Cetak
             </button>
             <button
               onClick={() => setActiveView('settings')}

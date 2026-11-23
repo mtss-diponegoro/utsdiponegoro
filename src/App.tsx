@@ -46,6 +46,8 @@ const MainContent: React.FC = () => {
           return <SettingsView />;
         case 'walikelas_kop':
           return <KopSettingsView />;
+        case 'walikelas_rapor':
+          return <HomeroomReportCardView />;
         default:
           return <AdminDashboardView />;
       }

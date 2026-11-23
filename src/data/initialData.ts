@@ -27,6 +27,10 @@ export const INITIAL_SETTINGS: SchoolSettings = {
   logoLembagaSize: 68,
   headerLineStyle: 'double',
   paperSize: 'A4',
+  printMarginTop: 12,
+  printMarginRight: 15,
+  printMarginBottom: 12,
+  printMarginLeft: 15,
 };
 
 export const INITIAL_CLASSES: SchoolClass[] = [
