@@ -14,16 +14,19 @@ import {
   Filter,
   Upload,
   FileSpreadsheet,
+  AlertTriangle,
 } from 'lucide-react';
 
 export const StudentManagementView: React.FC = () => {
-  const { students, classes, addStudent, updateStudent, deleteStudent } = useApp();
+  const { students, classes, addStudent, updateStudent, deleteStudent, batchDeleteStudents } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [classFilter, setClassFilter] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -48,6 +51,38 @@ export const StudentManagementView: React.FC = () => {
       return matchSearch && matchClass;
     });
   }, [students, searchQuery, classFilter]);
+
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const filteredIds = useMemo(() => filteredStudents.map((s) => s.id), [filteredStudents]);
+  const selectedFilteredCount = useMemo(
+    () => filteredIds.filter((id) => selectedIdSet.has(id)).length,
+    [filteredIds, selectedIdSet]
+  );
+  const isAllFilteredSelected =
+    filteredStudents.length > 0 && selectedFilteredCount === filteredStudents.length;
+
+  const toggleSelectAllFiltered = () => {
+    if (filteredStudents.length === 0) return;
+    if (isAllFilteredSelected) {
+      const filteredSet = new Set(filteredIds);
+      setSelectedIds((prev) => prev.filter((id) => !filteredSet.has(id)));
+    } else {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...filteredIds])));
+    }
+  };
+
+  const toggleSelectOne = (studentId: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(studentId) ? prev.filter((id) => id !== studentId) : [...prev, studentId]
+    );
+  };
+
+  const handleConfirmBulkDelete = () => {
+    if (selectedIds.length === 0) return;
+    batchDeleteStudents(selectedIds);
+    setSelectedIds([]);
+    setIsBulkDeleteModalOpen(false);
+  };
 
   const openAddModal = () => {
     setEditingStudent(null);
@@ -225,11 +260,84 @@ export const StudentManagementView: React.FC = () => {
           </div>
         </div>
 
+        {/* Bulk Selection Bar (Above Table, Below Search) */}
+        <div
+          className={`px-4 py-2.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs transition-colors ${
+            selectedIds.length > 0 ? 'bg-rose-50/70' : 'bg-white'
+          }`}
+        >
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="inline-flex items-center gap-2 cursor-pointer select-none font-semibold text-slate-800">
+              <input
+                type="checkbox"
+                checked={isAllFilteredSelected}
+                ref={(el) => {
+                  if (el) {
+                    el.indeterminate =
+                      selectedFilteredCount > 0 && selectedFilteredCount < filteredStudents.length;
+                  }
+                }}
+                onChange={toggleSelectAllFiltered}
+                disabled={filteredStudents.length === 0}
+                className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer disabled:opacity-40"
+              />
+              <span>
+                {isAllFilteredSelected
+                  ? `Batalkan Tandai Semua (${filteredStudents.length} siswa)`
+                  : `Tandai Semua (${filteredStudents.length} siswa)`}
+              </span>
+            </label>
+
+            {selectedIds.length > 0 && (
+              <>
+                <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-200 font-bold text-[11px]">
+                  {selectedIds.length} siswa ditandai
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds([])}
+                  className="text-[11px] font-semibold text-slate-600 hover:text-slate-900 underline cursor-pointer"
+                >
+                  Bersihkan Pilihan
+                </button>
+              </>
+            )}
+          </div>
+
+          <button
+            type="button"
+            disabled={selectedIds.length === 0}
+            onClick={() => setIsBulkDeleteModalOpen(true)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors ${
+              selectedIds.length > 0
+                ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-xs cursor-pointer'
+                : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+            }`}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>
+              {selectedIds.length > 0
+                ? `Hapus Siswa Terpilih (${selectedIds.length})`
+                : 'Hapus Siswa Terpilih'}
+            </span>
+          </button>
+        </div>
+
         {/* Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200">
               <tr>
+                <th className="py-3 px-3 w-10 text-center">
+                  <input
+                    type="checkbox"
+                    checked={isAllFilteredSelected}
+                    onChange={toggleSelectAllFiltered}
+                    disabled={filteredStudents.length === 0}
+                    aria-label="Tandai semua siswa"
+                    className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer disabled:opacity-40"
+                  />
+                </th>
                 <th className="py-3 px-3 w-10 text-center">No</th>
                 <th className="py-3 px-3 w-20">NIS</th>
                 <th className="py-3 px-3 w-24">NISN</th>
@@ -245,15 +353,30 @@ export const StudentManagementView: React.FC = () => {
             <tbody className="divide-y divide-slate-100">
               {filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-8 text-center text-slate-400">
+                  <td colSpan={11} className="py-8 text-center text-slate-400">
                     Tidak ada siswa ditemukan.
                   </td>
                 </tr>
               ) : (
                 filteredStudents.map((student, idx) => {
                   const cls = classes.find((c) => c.id === student.classId);
+                  const isSelected = selectedIdSet.has(student.id);
                   return (
-                    <tr key={student.id} className="hover:bg-slate-50/80 transition-colors">
+                    <tr
+                      key={student.id}
+                      className={`transition-colors ${
+                        isSelected ? 'bg-rose-50/60 hover:bg-rose-50' : 'hover:bg-slate-50/80'
+                      }`}
+                    >
+                      <td className="py-2.5 px-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelectOne(student.id)}
+                          aria-label={`Tandai ${student.name}`}
+                          className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                        />
+                      </td>
                       <td className="py-2.5 px-3 text-center text-slate-500 font-mono">{idx + 1}</td>
                       <td className="py-2.5 px-3 font-mono text-slate-700 font-medium">{student.nis}</td>
                       <td className="py-2.5 px-3 font-mono text-slate-500">{student.nisn}</td>
@@ -282,6 +405,7 @@ export const StudentManagementView: React.FC = () => {
                             onClick={() => {
                               if (confirm(`Hapus data siswa ${student.name}?`)) {
                                 deleteStudent(student.id);
+                                setSelectedIds((prev) => prev.filter((id) => id !== student.id));
                               }
                             }}
                             className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded"
@@ -444,6 +568,44 @@ export const StudentManagementView: React.FC = () => {
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
       />
+
+      {/* Bulk Delete Confirmation Modal */}
+      {isBulkDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-2xs">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-sm w-full p-6 text-center">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3 shadow-2xs">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+
+            <h3 className="font-bold text-slate-900 text-base mb-1">
+              Hapus {selectedIds.length} Siswa Terpilih?
+            </h3>
+            <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+              Seluruh data nilai UTS dan catatan presensi milik{' '}
+              <strong className="text-slate-800">{selectedIds.length} siswa</strong> yang ditandai
+              juga akan ikut terhapus secara permanen.
+            </p>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsBulkDeleteModalOpen(false)}
+                className="flex-1 py-2 px-4 rounded-lg border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmBulkDelete}
+                className="flex-1 py-2 px-4 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Ya, Hapus Semua
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

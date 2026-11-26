@@ -112,6 +112,7 @@ interface AppContextType {
   ) => { addedCount: number; updatedCount: number };
   updateStudent: (student: Student) => void;
   deleteStudent: (studentId: string) => void;
+  batchDeleteStudents: (studentIds: string[]) => void;
   addSubject: (subject: Omit<Subject, 'id'>) => void;
   updateSubject: (subject: Subject) => void;
   deleteSubject: (subjectId: string) => void;
@@ -759,6 +760,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setHomeroomRecords((prev) => prev.filter((hr) => hr.studentId !== studentId));
   }, []);
 
+  const batchDeleteStudents = useCallback((studentIds: string[]) => {
+    const idSet = new Set(studentIds);
+    setStudents((prev) => prev.filter((s) => !idSet.has(s.id)));
+    setGrades((prev) => prev.filter((g) => !idSet.has(g.studentId)));
+    setHomeroomRecords((prev) => prev.filter((hr) => !idSet.has(hr.studentId)));
+  }, []);
+
   const addSubject = useCallback((newSubjectData: Omit<Subject, 'id'>) => {
     const newSubject: Subject = {
       ...newSubjectData,
@@ -1215,6 +1223,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         batchAddStudents,
         updateStudent,
         deleteStudent,
+        batchDeleteStudents,
         addSubject,
         updateSubject,
         deleteSubject,
