@@ -31,7 +31,7 @@ export const TeacherRegisterModal: React.FC<TeacherRegisterModalProps> = ({
   onClose,
   onRegisteredSuccess,
 }) => {
-  const { subjects, classes, registerTeacher, cloudState } = useApp();
+  const { subjects, classes, settings, registerTeacher, cloudState } = useApp();
 
   const [name, setName] = useState('');
   const [nip, setNip] = useState('');
@@ -378,10 +378,15 @@ export const TeacherRegisterModal: React.FC<TeacherRegisterModalProps> = ({
               </label>
 
               {isHomeroom && (
-                <div className="pt-1">
-                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                    Pilih Kelas Binaan:
-                  </label>
+                <div className="pt-1 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase">
+                      Pilih Kelas Binaan:
+                    </label>
+                    <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+                      TA Aktif: {settings.academicYear} ({settings.semester})
+                    </span>
+                  </div>
                   <select
                     value={homeroomClassId}
                     onChange={(e) => setHomeroomClassId(e.target.value)}
@@ -389,7 +394,7 @@ export const TeacherRegisterModal: React.FC<TeacherRegisterModalProps> = ({
                   >
                     {classes.map((cls) => (
                       <option key={cls.id} value={cls.id}>
-                        {cls.name} ({cls.academicYear})
+                        {cls.name} — TA {settings.academicYear} ({settings.semester})
                       </option>
                     ))}
                   </select>

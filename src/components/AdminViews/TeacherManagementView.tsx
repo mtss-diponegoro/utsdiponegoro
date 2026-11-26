@@ -24,6 +24,7 @@ export const TeacherManagementView: React.FC = () => {
     teachers,
     classes,
     subjects,
+    settings,
     addTeacher,
     updateTeacher,
     deleteTeacher,
@@ -497,10 +498,15 @@ export const TeacherManagementView: React.FC = () => {
                 </div>
 
                 {formData.isHomeroom && (
-                  <div className="pt-2">
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                      Pilih Kelas Binaan:
-                    </label>
+                  <div className="pt-2 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase">
+                        Pilih Kelas Binaan:
+                      </label>
+                      <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+                        TA Aktif: {settings.academicYear}
+                      </span>
+                    </div>
                     <select
                       value={formData.homeroomClassId}
                       onChange={(e) => setFormData({ ...formData, homeroomClassId: e.target.value })}
@@ -508,7 +514,7 @@ export const TeacherManagementView: React.FC = () => {
                     >
                       {classes.map((cls) => (
                         <option key={cls.id} value={cls.id}>
-                          {cls.name} ({cls.academicYear})
+                          {cls.name} — TA {settings.academicYear} ({settings.semester})
                         </option>
                       ))}
                     </select>

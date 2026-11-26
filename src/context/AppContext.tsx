@@ -124,6 +124,9 @@ interface AppContextType {
   updateTeacher: (teacher: Teacher) => void;
   deleteTeacher: (teacherId: string) => void;
   updateSettings: (newSettings: Partial<SchoolSettings>) => void;
+  resetClassGrades: (classIds: string[], includeHomeroom?: boolean) => void;
+  resetStudentGrades: (studentIds: string[], includeHomeroom?: boolean) => void;
+  resetHomeroomRecords: (studentIds: string[]) => void;
   resetToInitialData: () => void;
   exportBackupData: () => string;
   importBackupData: (rawJson: string) => { success: boolean; message: string };
@@ -164,7 +167,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     safeGetLocalStorage<Subject[]>(STORAGE_KEYS.SUBJECTS, INITIAL_SUBJECTS)
   );
 
-  const [classes] = useState<SchoolClass[]>(() =>
+  const [rawClasses] = useState<SchoolClass[]>(() =>
     safeGetLocalStorage<SchoolClass[]>(STORAGE_KEYS.CLASSES, INITIAL_CLASSES)
   );
 
@@ -193,6 +196,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       nsm: parsed.nsm || INITIAL_SETTINGS.nsm,
     };
   });
+
+  const classes = useMemo<SchoolClass[]>(
+    () =>
+      rawClasses.map((cls) => ({
+        ...cls,
+        academicYear: settings.academicYear || cls.academicYear,
+      })),
+    [rawClasses, settings.academicYear]
+  );
 
   // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -856,6 +868,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTeachers((prev) => prev.filter((t) => t.id !== teacherId));
   }, []);
 
+  const resetClassGrades = useCallback(
+    (classIds: string[], includeHomeroom: boolean = false) => {
+      const classIdSet = new Set(classIds);
+      const affectedStudentIds = new Set(
+        students.filter((s) => classIdSet.has(s.classId)).map((s) => s.id)
+      );
+      setGrades((prev) =>
+        prev.filter((g) => !classIdSet.has(g.classId) && !affectedStudentIds.has(g.studentId))
+      );
+      if (includeHomeroom) {
+        setHomeroomRecords((prev) =>
+          prev.filter(
+            (hr) => !classIdSet.has(hr.classId) && !affectedStudentIds.has(hr.studentId)
+          )
+        );
+      }
+    },
+    [students]
+  );
+
+  const resetStudentGrades = useCallback(
+    (studentIds: string[], includeHomeroom: boolean = false) => {
+      const studentIdSet = new Set(studentIds);
+      setGrades((prev) => prev.filter((g) => !studentIdSet.has(g.studentId)));
+      if (includeHomeroom) {
+        setHomeroomRecords((prev) => prev.filter((hr) => !studentIdSet.has(hr.studentId)));
+      }
+    },
+    []
+  );
+
+  const resetHomeroomRecords = useCallback((studentIds: string[]) => {
+    const studentIdSet = new Set(studentIds);
+    setHomeroomRecords((prev) => prev.filter((hr) => !studentIdSet.has(hr.studentId)));
+  }, []);
+
   const [cloudState, setCloudState] = useState<CloudSyncState>({
     mode: 'checking',
     syncStatus: 'idle',
@@ -889,10 +937,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const applySnapshot = useCallback((snapshot: Partial<SchoolDatabaseSnapshot>) => {
     suppressNextCloudSyncRef.current = true;
-    if (Array.isArray(snapshot.students) && snapshot.students.length > 0) {
+    if (Array.isArray(snapshot.students)) {
       setStudents(snapshot.students);
     }
-    if (Array.isArray(snapshot.subjects) && snapshot.subjects.length > 0) {
+    if (Array.isArray(snapshot.subjects)) {
       setSubjects(snapshot.subjects);
     }
     if (Array.isArray(snapshot.teachers) && snapshot.teachers.length > 0) {
@@ -907,10 +955,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return prevUser;
       });
     }
-    if (Array.isArray(snapshot.grades) && snapshot.grades.length > 0) {
+    if (Array.isArray(snapshot.grades)) {
       setGrades(snapshot.grades);
     }
-    if (Array.isArray(snapshot.homeroomRecords) && snapshot.homeroomRecords.length > 0) {
+    if (Array.isArray(snapshot.homeroomRecords)) {
       setHomeroomRecords(snapshot.homeroomRecords);
     }
     if (snapshot.settings && typeof snapshot.settings === 'object') {
@@ -1283,6 +1331,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateTeacher,
         deleteTeacher,
         updateSettings,
+        resetClassGrades,
+        resetStudentGrades,
+        resetHomeroomRecords,
         resetToInitialData,
         exportBackupData,
         importBackupData,

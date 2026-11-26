@@ -6,10 +6,9 @@ import {
   Download,
   Search,
   Trophy,
-  Award,
-  Users,
-  ArrowUpDown,
-  Filter,
+  RotateCcw,
+  AlertTriangle,
+  CheckCircle2,
 } from 'lucide-react';
 
 export const HomeroomLedgerView: React.FC = () => {
@@ -19,12 +18,16 @@ export const HomeroomLedgerView: React.FC = () => {
     selectedClassId,
     setSelectedClassId,
     getClassRanking,
-    activeTeacher,
+    resetStudentGrades,
     settings,
   } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'rank' | 'name' | 'total'>('rank');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [alsoResetHomeroom, setAlsoResetHomeroom] = useState(false);
+  const [resetNotice, setResetNotice] = useState<string | null>(null);
 
   const orderedSubjects = useMemo(() => sortSubjectsByCategoryOrder(subjects), [subjects]);
 
@@ -81,6 +84,42 @@ export const HomeroomLedgerView: React.FC = () => {
 
     return list;
   }, [rankings, searchQuery, sortBy]);
+
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const filteredIds = useMemo(() => sortedAndFiltered.map((r) => r.student.id), [sortedAndFiltered]);
+  const selectedFilteredCount = useMemo(
+    () => filteredIds.filter((id) => selectedIdSet.has(id)).length,
+    [filteredIds, selectedIdSet]
+  );
+  const isAllFilteredSelected =
+    sortedAndFiltered.length > 0 && selectedFilteredCount === sortedAndFiltered.length;
+
+  const toggleSelectAllFiltered = () => {
+    if (sortedAndFiltered.length === 0) return;
+    if (isAllFilteredSelected) {
+      const filteredSet = new Set(filteredIds);
+      setSelectedIds((prev) => prev.filter((id) => !filteredSet.has(id)));
+    } else {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...filteredIds])));
+    }
+  };
+
+  const toggleSelectOne = (studentId: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(studentId) ? prev.filter((id) => id !== studentId) : [...prev, studentId]
+    );
+  };
+
+  const handleConfirmReset = () => {
+    if (selectedIds.length === 0) return;
+    const count = selectedIds.length;
+    resetStudentGrades(selectedIds, alsoResetHomeroom);
+    setSelectedIds([]);
+    setIsResetModalOpen(false);
+    setAlsoResetHomeroom(false);
+    setResetNotice(`Nilai UTS untuk ${count} siswa terpilih berhasil direset.`);
+    setTimeout(() => setResetNotice(null), 4000);
+  };
 
   const exportLedgerCsv = () => {
     const headers = [
@@ -265,11 +304,91 @@ export const HomeroomLedgerView: React.FC = () => {
           </div>
         </div>
 
+        {/* Bulk Selection & Reset Bar (Above Table, Below Search) */}
+        <div
+          className={`px-4 py-2.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs transition-colors ${
+            selectedIds.length > 0 ? 'bg-amber-50/70' : 'bg-white'
+          }`}
+        >
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="inline-flex items-center gap-2 cursor-pointer select-none font-semibold text-slate-800">
+              <input
+                type="checkbox"
+                checked={isAllFilteredSelected}
+                ref={(el) => {
+                  if (el) {
+                    el.indeterminate =
+                      selectedFilteredCount > 0 && selectedFilteredCount < sortedAndFiltered.length;
+                  }
+                }}
+                onChange={toggleSelectAllFiltered}
+                disabled={sortedAndFiltered.length === 0}
+                className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer disabled:opacity-40"
+              />
+              <span>
+                {isAllFilteredSelected
+                  ? `Batalkan Tandai Semua (${sortedAndFiltered.length} siswa)`
+                  : `Tandai Semua (${sortedAndFiltered.length} siswa)`}
+              </span>
+            </label>
+
+            {selectedIds.length > 0 && (
+              <>
+                <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-200 font-bold text-[11px]">
+                  {selectedIds.length} siswa ditandai
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds([])}
+                  className="text-[11px] font-semibold text-slate-600 hover:text-slate-900 underline cursor-pointer"
+                >
+                  Bersihkan Pilihan
+                </button>
+              </>
+            )}
+
+            {resetNotice && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold text-[11px]">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                {resetNotice}
+              </span>
+            )}
+          </div>
+
+          <button
+            type="button"
+            disabled={selectedIds.length === 0}
+            onClick={() => setIsResetModalOpen(true)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors ${
+              selectedIds.length > 0
+                ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-xs cursor-pointer'
+                : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+            }`}
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>
+              {selectedIds.length > 0
+                ? `Reset Nilai Terpilih (${selectedIds.length})`
+                : 'Reset Nilai Terpilih'}
+            </span>
+          </button>
+        </div>
+
         {/* Dense Responsive Ledger Matrix Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200">
               <tr>
+                <th className="py-3 px-2 w-9 text-center">
+                  <input
+                    type="checkbox"
+                    checked={isAllFilteredSelected}
+                    onChange={toggleSelectAllFiltered}
+                    disabled={sortedAndFiltered.length === 0}
+                    aria-label="Tandai semua siswa"
+                    className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer disabled:opacity-40"
+                  />
+                </th>
                 <th className="py-3 px-2 w-12 text-center sticky left-0 bg-slate-100 z-10">Peringkat</th>
                 <th className="py-3 px-2 w-16">NIS</th>
                 <th className="py-3 px-3 min-w-[180px] sticky left-12 bg-slate-100 z-10">Nama Siswa</th>
@@ -300,8 +419,23 @@ export const HomeroomLedgerView: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {sortedAndFiltered.map((item) => {
+                const isSelected = selectedIdSet.has(item.student.id);
                 return (
-                  <tr key={item.student.id} className="hover:bg-slate-50/80 transition-colors">
+                  <tr
+                    key={item.student.id}
+                    className={`transition-colors ${
+                      isSelected ? 'bg-amber-50/50 hover:bg-amber-50' : 'hover:bg-slate-50/80'
+                    }`}
+                  >
+                    <td className="py-2 px-2 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelectOne(item.student.id)}
+                        aria-label={`Tandai ${item.student.name}`}
+                        className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                      />
+                    </td>
                     {/* Rank Badge */}
                     <td className="py-2 px-2 text-center sticky left-0 bg-white z-10">
                       <span
@@ -371,7 +505,7 @@ export const HomeroomLedgerView: React.FC = () => {
             {/* Table Footer: Class Subject Averages */}
             <tfoot className="bg-slate-100 text-slate-800 font-bold border-t-2 border-slate-300">
               <tr>
-                <td colSpan={4} className="py-3 px-3 text-right uppercase text-[10px] tracking-wider text-slate-600">
+                <td colSpan={5} className="py-3 px-3 text-right uppercase text-[10px] tracking-wider text-slate-600">
                   Rata-rata Kelas per Mapel:
                 </td>
                 {orderedSubjects.map((sub) => (
@@ -387,6 +521,54 @@ export const HomeroomLedgerView: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Reset Confirmation Modal */}
+      {isResetModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-2xs">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-sm w-full p-6 text-center">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3 shadow-2xs">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+
+            <h3 className="font-bold text-slate-900 text-base mb-1">
+              Reset Nilai {selectedIds.length} Siswa Terpilih?
+            </h3>
+            <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+              Seluruh nilai tugas dan UTS milik{' '}
+              <strong className="text-slate-800">{selectedIds.length} siswa</strong> yang ditandai
+              akan dikosongkan.
+            </p>
+
+            <label className="flex items-start gap-2 text-left text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-3 mb-5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={alsoResetHomeroom}
+                onChange={(e) => setAlsoResetHomeroom(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
+              />
+              <span>Sekaligus reset presensi (S/I/A), ekstrakurikuler, &amp; catatan wali kelas</span>
+            </label>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsResetModalOpen(false)}
+                className="flex-1 py-2 px-4 rounded-lg border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmReset}
+                className="flex-1 py-2 px-4 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Ya, Reset Nilai
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
