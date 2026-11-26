@@ -74,12 +74,14 @@ export const GradeInputView: React.FC = () => {
     field: 'assignment1' | 'assignment2' | 'utsScore',
     valueStr: string
   ) => {
+    if (!currentSubject) return;
     const val = valueStr === '' ? 0 : Math.min(100, Math.max(0, Number(valueStr) || 0));
     updateGrade(studentId, currentSubject.id, { [field]: val });
     showSavedNotice();
   };
 
   const handleNotesChange = (studentId: string, notes: string) => {
+    if (!currentSubject) return;
     updateGrade(studentId, currentSubject.id, { notes });
     showSavedNotice();
   };
@@ -143,7 +145,7 @@ export const GradeInputView: React.FC = () => {
                 Mata Pelajaran
               </label>
               <select
-                value={selectedSubjectId}
+                value={currentSubject?.id || ''}
                 onChange={(e) => setSelectedSubjectId(e.target.value)}
                 className="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
@@ -363,7 +365,7 @@ export const GradeInputView: React.FC = () => {
                       <td className="py-2.5 px-3 text-center font-mono font-bold text-sm bg-slate-50">
                         <span
                           className={
-                            grade.finalScore >= currentSubject.kkm ? 'text-slate-900' : 'text-rose-600'
+                            grade.finalScore >= (currentSubject?.kkm ?? 75) ? 'text-slate-900' : 'text-rose-600'
                           }
                         >
                           {grade.finalScore}

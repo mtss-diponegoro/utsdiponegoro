@@ -35,6 +35,7 @@ import {
   clearIndexedDbSnapshot,
   SchoolDatabaseSnapshot,
 } from '../utils/localDb';
+import { sortSubjectsByCategoryOrder } from '../utils/subjectOrder';
 
 export interface CloudSyncState {
   mode: CloudMode;
@@ -116,6 +117,9 @@ interface AppContextType {
   addSubject: (subject: Omit<Subject, 'id'>) => void;
   updateSubject: (subject: Subject) => void;
   deleteSubject: (subjectId: string) => void;
+  batchDeleteSubjects: (subjectIds: string[]) => void;
+  moveSubject: (subjectId: string, direction: 'up' | 'down') => void;
+  replaceSubjects: (nextSubjects: Subject[]) => void;
   addTeacher: (teacher: Omit<Teacher, 'id'>) => void;
   updateTeacher: (teacher: Teacher) => void;
   deleteTeacher: (teacherId: string) => void;
@@ -233,7 +237,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return currentUser?.homeroomClassId || 'c-7a';
   });
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>(() => {
-    return currentUser?.taughtSubjectIds?.[0] || 'sub-pai';
+    return currentUser?.taughtSubjectIds?.[0] || subjects[0]?.id || 'sub-qh';
   });
 
   const ADMIN_ONLY_VIEWS = useMemo(
@@ -770,18 +774,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addSubject = useCallback((newSubjectData: Omit<Subject, 'id'>) => {
     const newSubject: Subject = {
       ...newSubjectData,
-      id: `sub-${Date.now()}`,
+      id: `sub-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     };
-    setSubjects((prev) => [...prev, newSubject]);
+    setSubjects((prev) => sortSubjectsByCategoryOrder([...prev, newSubject]));
   }, []);
 
   const updateSubject = useCallback((updated: Subject) => {
-    setSubjects((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+    setSubjects((prev) =>
+      sortSubjectsByCategoryOrder(prev.map((s) => (s.id === updated.id ? updated : s)))
+    );
   }, []);
 
   const deleteSubject = useCallback((subjectId: string) => {
     setSubjects((prev) => prev.filter((s) => s.id !== subjectId));
     setGrades((prev) => prev.filter((g) => g.subjectId !== subjectId));
+    setTeachers((prev) =>
+      prev.map((t) => ({
+        ...t,
+        taughtSubjectIds: (t.taughtSubjectIds || []).filter((id) => id !== subjectId),
+      }))
+    );
+  }, []);
+
+  const batchDeleteSubjects = useCallback((subjectIds: string[]) => {
+    const idSet = new Set(subjectIds);
+    setSubjects((prev) => prev.filter((s) => !idSet.has(s.id)));
+    setGrades((prev) => prev.filter((g) => !idSet.has(g.subjectId)));
+    setTeachers((prev) =>
+      prev.map((t) => ({
+        ...t,
+        taughtSubjectIds: (t.taughtSubjectIds || []).filter((id) => !idSet.has(id)),
+      }))
+    );
+  }, []);
+
+  const moveSubject = useCallback((subjectId: string, direction: 'up' | 'down') => {
+    setSubjects((prev) => {
+      const ordered = sortSubjectsByCategoryOrder(prev);
+      const idx = ordered.findIndex((s) => s.id === subjectId);
+      if (idx < 0) return prev;
+      const target = ordered[idx];
+      const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (swapIdx < 0 || swapIdx >= ordered.length) return prev;
+      if (ordered[swapIdx].category !== target.category) return prev;
+
+      const copy = [...ordered];
+      const temp = copy[idx];
+      copy[idx] = copy[swapIdx];
+      copy[swapIdx] = temp;
+      return copy;
+    });
+  }, []);
+
+  const replaceSubjects = useCallback((nextSubjects: Subject[]) => {
+    const ordered = sortSubjectsByCategoryOrder(nextSubjects);
+    setSubjects(ordered);
+    const validIds = new Set(ordered.map((s) => s.id));
+    setGrades((prev) => prev.filter((g) => validIds.has(g.subjectId)));
   }, []);
 
   const addTeacher = useCallback((newTeacherData: Omit<Teacher, 'id'>) => {
@@ -1227,6 +1276,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addSubject,
         updateSubject,
         deleteSubject,
+        batchDeleteSubjects,
+        moveSubject,
+        replaceSubjects,
         addTeacher,
         updateTeacher,
         deleteTeacher,

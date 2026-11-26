@@ -81,7 +81,7 @@ export const SubjectAnalyticsView: React.FC = () => {
 
         <div className="flex items-center gap-2">
           <select
-            value={selectedSubjectId}
+            value={currentSubject?.id || ''}
             onChange={(e) => setSelectedSubjectId(e.target.value)}
             className="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-800"
           >
@@ -115,7 +115,7 @@ export const SubjectAnalyticsView: React.FC = () => {
           </div>
           <p className="text-2xl font-bold text-slate-900 font-mono mt-2">{stats.passRate}%</p>
           <p className="text-[11px] text-slate-500 mt-1">
-            {stats.passedCount} dari {stats.scoredCount} siswa tuntas KKM ({currentSubject.kkm})
+            {stats.passedCount} dari {stats.scoredCount} siswa tuntas KKM ({currentSubject?.kkm ?? 75})
           </p>
         </div>
 
@@ -238,7 +238,7 @@ export const SubjectAnalyticsView: React.FC = () => {
               Daftar Siswa Sasaran Program Remedial
             </h3>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              Siswa dengan Nilai Akhir di bawah KKM ({currentSubject.kkm}) pada mata pelajaran {currentSubject.name}
+              Siswa dengan Nilai Akhir di bawah KKM ({currentSubject?.kkm ?? 75}) pada mata pelajaran {currentSubject?.name || '-'}
             </p>
           </div>
           <span className="text-xs font-mono font-semibold px-2.5 py-1 rounded bg-rose-100 text-rose-800">
@@ -268,7 +268,7 @@ export const SubjectAnalyticsView: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {stats.remedialList.map(({ student, grade }, idx) => {
-                  const gap = currentSubject.kkm - grade.finalScore;
+                  const gap = (currentSubject?.kkm ?? 75) - grade.finalScore;
                   return (
                     <tr key={student.id} className="hover:bg-slate-50/60">
                       <td className="py-2.5 px-3 font-mono text-slate-500">{idx + 1}</td>

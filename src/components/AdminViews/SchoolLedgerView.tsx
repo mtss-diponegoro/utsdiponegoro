@@ -1,9 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
+import { sortSubjectsByCategoryOrder } from '../../utils/subjectOrder';
 import { FileSpreadsheet, Download, Search, Filter, Trophy, BarChart2 } from 'lucide-react';
 
 export const SchoolLedgerView: React.FC = () => {
   const { classes, subjects, students, grades, settings, getClassRanking } = useApp();
+  const orderedSubjects = useMemo(() => sortSubjectsByCategoryOrder(subjects), [subjects]);
 
   const [selectedClassId, setSelectedClassId] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -50,7 +52,7 @@ export const SchoolLedgerView: React.FC = () => {
       'NISN',
       'Nama Siswa',
       'L/P',
-      ...subjects.map((s) => s.code),
+      ...orderedSubjects.map((s) => s.code),
       'Total Nilai',
       'Rata-rata',
     ];
@@ -63,7 +65,7 @@ export const SchoolLedgerView: React.FC = () => {
       r.student.nisn,
       `"${r.student.name}"`,
       r.student.gender,
-      ...subjects.map((s) => r.grades[s.id]?.finalScore || 0),
+      ...orderedSubjects.map((s) => r.grades[s.id]?.finalScore || 0),
       r.totalScore,
       r.averageScore,
     ]);
@@ -143,7 +145,7 @@ export const SchoolLedgerView: React.FC = () => {
                 <th className="py-3 px-2 w-16">NIS</th>
                 <th className="py-3 px-3 min-w-[180px]">Nama Siswa</th>
                 <th className="py-3 px-1 w-8 text-center">L/P</th>
-                {subjects.map((sub) => (
+                {orderedSubjects.map((sub) => (
                   <th key={sub.id} className="py-3 px-1.5 w-14 text-center border-l border-slate-200">
                     {sub.code}
                   </th>
@@ -167,7 +169,7 @@ export const SchoolLedgerView: React.FC = () => {
                   <td className="py-2.5 px-2 font-mono text-slate-600">{item.student.nis}</td>
                   <td className="py-2.5 px-3 font-semibold text-slate-900">{item.student.name}</td>
                   <td className="py-2.5 px-1 text-center font-mono text-slate-500">{item.student.gender}</td>
-                  {subjects.map((sub) => {
+                  {orderedSubjects.map((sub) => {
                     const grade = item.grades[sub.id];
                     const score = grade?.finalScore || 0;
                     return (

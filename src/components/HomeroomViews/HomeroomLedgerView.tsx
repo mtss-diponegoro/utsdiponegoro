@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
+import { sortSubjectsByCategoryOrder } from '../../utils/subjectOrder';
 import {
   FileSpreadsheet,
   Download,
@@ -25,6 +26,8 @@ export const HomeroomLedgerView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'rank' | 'name' | 'total'>('rank');
 
+  const orderedSubjects = useMemo(() => sortSubjectsByCategoryOrder(subjects), [subjects]);
+
   const currentClass = classes.find((c) => c.id === selectedClassId) || classes[0];
   const rankings = useMemo(() => {
     return getClassRanking(currentClass.id);
@@ -34,7 +37,7 @@ export const HomeroomLedgerView: React.FC = () => {
   const subjectAverages = useMemo(() => {
     const result: { [subId: string]: { avg: number; highest: number; lowest: number } } = {};
 
-    subjects.forEach((sub) => {
+    orderedSubjects.forEach((sub) => {
       let sum = 0;
       let count = 0;
       let high = 0;
@@ -58,7 +61,7 @@ export const HomeroomLedgerView: React.FC = () => {
     });
 
     return result;
-  }, [subjects, rankings]);
+  }, [orderedSubjects, rankings]);
 
   const sortedAndFiltered = useMemo(() => {
     let list = rankings.filter((r) => {
@@ -86,7 +89,7 @@ export const HomeroomLedgerView: React.FC = () => {
       'NISN',
       'Nama Siswa',
       'L/P',
-      ...subjects.map((s) => s.code),
+      ...orderedSubjects.map((s) => s.code),
       'Total Nilai',
       'Rata-rata',
       'Sakit',
@@ -100,7 +103,7 @@ export const HomeroomLedgerView: React.FC = () => {
       r.student.nisn,
       `"${r.student.name}"`,
       r.student.gender,
-      ...subjects.map((s) => r.grades[s.id]?.finalScore || 0),
+      ...orderedSubjects.map((s) => r.grades[s.id]?.finalScore || 0),
       r.totalScore,
       r.averageScore,
       r.attendance.sick,
@@ -273,7 +276,7 @@ export const HomeroomLedgerView: React.FC = () => {
                 <th className="py-3 px-1 w-8 text-center">L/P</th>
                 
                 {/* Dynamically render subject column headers */}
-                {subjects.map((sub) => (
+                {orderedSubjects.map((sub) => (
                   <th
                     key={sub.id}
                     className="py-3 px-2 w-16 text-center border-l border-slate-200"
@@ -325,7 +328,7 @@ export const HomeroomLedgerView: React.FC = () => {
                     <td className="py-2 px-1 text-center font-mono text-slate-500">{item.student.gender}</td>
 
                     {/* Subject scores */}
-                    {subjects.map((sub) => {
+                    {orderedSubjects.map((sub) => {
                       const grade = item.grades[sub.id];
                       const score = grade?.finalScore || 0;
                       const isBelowKkm = score > 0 && score < sub.kkm;
@@ -371,7 +374,7 @@ export const HomeroomLedgerView: React.FC = () => {
                 <td colSpan={4} className="py-3 px-3 text-right uppercase text-[10px] tracking-wider text-slate-600">
                   Rata-rata Kelas per Mapel:
                 </td>
-                {subjects.map((sub) => (
+                {orderedSubjects.map((sub) => (
                   <td key={sub.id} className="py-3 px-2 text-center font-mono border-l border-slate-200 text-emerald-950">
                     {subjectAverages[sub.id]?.avg || 0}
                   </td>

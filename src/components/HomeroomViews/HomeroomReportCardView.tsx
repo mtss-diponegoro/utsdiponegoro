@@ -3,6 +3,11 @@ import { useApp } from '../../context/AppContext';
 import { Student, GradeRecord, HomeroomRecord } from '../../types';
 import { OfficialKopSurat } from '../Common/OfficialKopSurat';
 import {
+  sortSubjectsByCategoryOrder,
+  groupSubjectsForRapor,
+  getLetterLabel,
+} from '../../utils/subjectOrder';
+import {
   Printer,
   ChevronLeft,
   ChevronRight,
@@ -63,8 +68,10 @@ export const HomeroomReportCardView: React.FC = () => {
     window.print();
   };
 
+  const orderedSubjects = useMemo(() => sortSubjectsByCategoryOrder(subjects), [subjects]);
+
   const getStudentGrades = (studentId: string) => {
-    return subjects.map((sub) => {
+    return orderedSubjects.map((sub) => {
       const g = grades.find((item) => item.studentId === studentId && item.subjectId === sub.id);
       return {
         subject: sub,
@@ -464,7 +471,7 @@ export const HomeroomReportCardView: React.FC = () => {
         <PrintableLegerSheet
           currentClass={currentClass}
           rankings={classRankings}
-          subjects={subjects}
+          subjects={orderedSubjects}
           settings={settings}
         />
       ) : printDocType === 'presensi' ? (
@@ -508,6 +515,9 @@ const ReportCardSingle: React.FC<ReportCardSingleProps> = ({
   const totalScore = subjectsData.reduce((acc, curr) => acc + (curr.grade.finalScore || 0), 0);
   const averageScore =
     subjectsData.length > 0 ? Math.round((totalScore / subjectsData.length) * 10) / 10 : 0;
+
+  const grouped = groupSubjectsForRapor(subjectsData.map((d) => d.subject));
+  const dataById = new Map(subjectsData.map((d) => [d.subject.id, d]));
 
   return (
     <div className="rapor-sheet max-w-4xl mx-auto bg-white p-8 md:p-12 border border-slate-200 shadow-xs rounded-xl text-slate-900 text-sm leading-normal">
@@ -572,28 +582,116 @@ const ReportCardSingle: React.FC<ReportCardSingleProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-300">
-            {subjectsData.map(({ subject, grade }, idx) => (
-              <tr key={subject.id} className="border-b border-slate-200">
-                <td className="py-1.5 px-2 text-center font-mono border-r border-slate-900">
-                  {idx + 1}
-                </td>
-                <td className="py-1.5 px-3 font-medium text-slate-900 border-r border-slate-900">
-                  {subject.name}
-                </td>
-                <td className="py-1.5 px-2 text-center font-mono border-r border-slate-900">
-                  {subject.kkm}
-                </td>
-                <td className="py-1.5 px-2 text-center font-mono font-bold text-slate-900 border-r border-slate-900">
-                  {grade.finalScore > 0 ? grade.finalScore : '-'}
-                </td>
-                <td className="py-1.5 px-2 text-center font-bold border-r border-slate-900">
-                  {grade.predicate}
-                </td>
-                <td className="py-1.5 px-3 text-[11px] text-slate-700">
-                  {grade.notes || (grade.isPassed ? 'Tercapai dengan sangat baik' : 'Perlu pendampingan remedial')}
-                </td>
-              </tr>
-            ))}
+            {/* 1. Pendidikan Agama Islam */}
+            {grouped.agamaSubjects.length > 0 && (
+              <>
+                <tr className="border-b border-slate-300 bg-slate-50/60 print:bg-white">
+                  <td
+                    rowSpan={grouped.agamaSubjects.length + 1}
+                    className="py-1.5 px-2 text-center font-mono font-bold align-top border-r border-slate-900"
+                  >
+                    {grouped.agamaNumber}
+                  </td>
+                  <td colSpan={5} className="py-1.5 px-3 font-bold text-slate-900">
+                    Pendidikan Agama Islam
+                  </td>
+                </tr>
+                {grouped.agamaSubjects.map((sub, idx) => {
+                  const item = dataById.get(sub.id);
+                  if (!item) return null;
+                  const { subject, grade } = item;
+                  return (
+                    <tr key={subject.id} className="border-b border-slate-200">
+                      <td className="py-1.5 px-3 font-medium text-slate-900 border-r border-slate-900">
+                        {getLetterLabel(idx)}. {subject.name}
+                      </td>
+                      <td className="py-1.5 px-2 text-center font-mono border-r border-slate-900">
+                        {subject.kkm}
+                      </td>
+                      <td className="py-1.5 px-2 text-center font-mono font-bold text-slate-900 border-r border-slate-900">
+                        {grade.finalScore > 0 ? grade.finalScore : '-'}
+                      </td>
+                      <td className="py-1.5 px-2 text-center font-bold border-r border-slate-900">
+                        {grade.predicate}
+                      </td>
+                      <td className="py-1.5 px-3 text-[11px] text-slate-700">
+                        {grade.notes || (grade.isPassed ? 'Tercapai dengan sangat baik' : 'Perlu pendampingan remedial')}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </>
+            )}
+
+            {/* 2 - 11. Mata Pelajaran Umum */}
+            {grouped.umumSubjects.map((sub, idx) => {
+              const item = dataById.get(sub.id);
+              if (!item) return null;
+              const { subject, grade } = item;
+              return (
+                <tr key={subject.id} className="border-b border-slate-200">
+                  <td className="py-1.5 px-2 text-center font-mono border-r border-slate-900">
+                    {grouped.umumStartNumber + idx}
+                  </td>
+                  <td className="py-1.5 px-3 font-medium text-slate-900 border-r border-slate-900">
+                    {subject.name}
+                  </td>
+                  <td className="py-1.5 px-2 text-center font-mono border-r border-slate-900">
+                    {subject.kkm}
+                  </td>
+                  <td className="py-1.5 px-2 text-center font-mono font-bold text-slate-900 border-r border-slate-900">
+                    {grade.finalScore > 0 ? grade.finalScore : '-'}
+                  </td>
+                  <td className="py-1.5 px-2 text-center font-bold border-r border-slate-900">
+                    {grade.predicate}
+                  </td>
+                  <td className="py-1.5 px-3 text-[11px] text-slate-700">
+                    {grade.notes || (grade.isPassed ? 'Tercapai dengan sangat baik' : 'Perlu pendampingan remedial')}
+                  </td>
+                </tr>
+              );
+            })}
+
+            {/* 12. Muatan Lokal */}
+            {grouped.mulokSubjects.length > 0 && (
+              <>
+                <tr className="border-b border-slate-300 bg-slate-50/60 print:bg-white">
+                  <td
+                    rowSpan={grouped.mulokSubjects.length + 1}
+                    className="py-1.5 px-2 text-center font-mono font-bold align-top border-r border-slate-900"
+                  >
+                    {grouped.mulokNumber}
+                  </td>
+                  <td colSpan={5} className="py-1.5 px-3 font-bold text-slate-900">
+                    Muatan Lokal
+                  </td>
+                </tr>
+                {grouped.mulokSubjects.map((sub, idx) => {
+                  const item = dataById.get(sub.id);
+                  if (!item) return null;
+                  const { subject, grade } = item;
+                  return (
+                    <tr key={subject.id} className="border-b border-slate-200">
+                      <td className="py-1.5 px-3 font-medium text-slate-900 border-r border-slate-900">
+                        {getLetterLabel(idx)}. {subject.name}
+                      </td>
+                      <td className="py-1.5 px-2 text-center font-mono border-r border-slate-900">
+                        {subject.kkm}
+                      </td>
+                      <td className="py-1.5 px-2 text-center font-mono font-bold text-slate-900 border-r border-slate-900">
+                        {grade.finalScore > 0 ? grade.finalScore : '-'}
+                      </td>
+                      <td className="py-1.5 px-2 text-center font-bold border-r border-slate-900">
+                        {grade.predicate}
+                      </td>
+                      <td className="py-1.5 px-3 text-[11px] text-slate-700">
+                        {grade.notes || (grade.isPassed ? 'Tercapai dengan sangat baik' : 'Perlu pendampingan remedial')}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </>
+            )}
           </tbody>
           <tfoot>
             <tr className="bg-slate-100 print:bg-white font-bold border-t-2 border-slate-900">
